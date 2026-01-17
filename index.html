@@ -258,20 +258,124 @@
         }
 
         @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+
             .main-content {
                 grid-template-columns: 1fr;
+                gap: 15px;
             }
 
             .header h1 {
-                font-size: 1.8em;
+                font-size: 2em;
+            }
+
+            .header p {
+                font-size: 1em;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .card h2 {
+                font-size: 1.3em;
             }
 
             .revenue-amount {
-                font-size: 2em;
+                font-size: 2.2em;
+            }
+
+            .revenue-label {
+                font-size: 1em;
             }
 
             .stats-grid {
                 grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .stat-number {
+                font-size: 1.6em;
+            }
+
+            .stat-label {
+                font-size: 0.9em;
+            }
+
+            .transaction-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .transaction-info {
+                width: 100%;
+            }
+
+            .delete-btn {
+                width: 100%;
+                padding: 10px;
+            }
+
+            .btn {
+                padding: 14px;
+                font-size: 1em;
+            }
+
+            .form-group input {
+                padding: 10px;
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                margin-bottom: 20px;
+            }
+
+            .header h1 {
+                font-size: 1.6em;
+            }
+
+            .header p {
+                font-size: 0.9em;
+            }
+
+            .card {
+                padding: 15px;
+                border-radius: 12px;
+            }
+
+            .card h2 {
+                font-size: 1.2em;
+                margin-bottom: 15px;
+            }
+
+            .revenue-amount {
+                font-size: 1.8em;
+                margin: 15px 0;
+            }
+
+            .stat-box {
+                padding: 12px;
+            }
+
+            .stat-number {
+                font-size: 1.4em;
+            }
+
+            .transaction-date {
+                font-size: 0.9em;
+            }
+
+            .transaction-price {
+                font-size: 1.1em;
             }
         }
     </style>
@@ -301,6 +405,12 @@
                     </div>
                     <button type="submit" class="btn" id="submitBtn">Tambah Transaksi</button>
                 </form>
+                
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+                    <button class="btn" id="exportBtn" style="background: linear-gradient(135deg, #3a7049 0%, #4a8a5e 100%);">
+                        📥 Download ke Excel
+                    </button>
+                </div>
             </div>
 
             <div class="card revenue-panel">
@@ -331,6 +441,9 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <!-- SheetJS for Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <script>
         // ==========================================
@@ -517,6 +630,81 @@
 
         // Set tanggal hari ini sebagai default
         document.getElementById('rentalDate').valueAsDate = new Date();
+
+        // Handler untuk export ke Excel
+        document.getElementById('exportBtn').addEventListener('click', async function() {
+            if (!isConfigured) {
+                alert('Firebase belum dikonfigurasi!');
+                return;
+            }
+
+            try {
+                // Ambil semua data dari Firebase
+                const snapshot = await transactionsRef.once('value');
+                const data = snapshot.val();
+
+                if (!data || Object.keys(data).length === 0) {
+                    alert('⚠️ Tidak ada data untuk diexport!');
+                    return;
+                }
+
+                // Convert ke array dan sort by date
+                const transactionsArray = Object.entries(data).map(([id, transaction]) => ({
+                    id,
+                    ...transaction
+                })).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                // Prepare data untuk Excel
+                const excelData = [
+                    ['Tanggal', 'Harga Sewa (Rp)', 'Tanggal Sewa (Format)'] // Header
+                ];
+
+                transactionsArray.forEach(transaction => {
+                    excelData.push([
+                        transaction.date,
+                        transaction.price,
+                        formatDate(transaction.date)
+                    ]);
+                });
+
+                // Tambah summary di akhir
+                const total = transactionsArray.reduce((sum, t) => sum + t.price, 0);
+                const average = total / transactionsArray.length;
+
+                excelData.push([]);
+                excelData.push(['RINGKASAN', '', '']);
+                excelData.push(['Total Transaksi', transactionsArray.length, '']);
+                excelData.push(['Total Pendapatan', total, formatCurrency(total)]);
+                excelData.push(['Rata-rata per Transaksi', Math.round(average), formatCurrency(average)]);
+
+                // Create workbook dan worksheet
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(excelData);
+
+                // Set column widths
+                ws['!cols'] = [
+                    { wch: 15 },  // Tanggal
+                    { wch: 18 },  // Harga
+                    { wch: 25 }   // Tanggal Format
+                ];
+
+                // Add worksheet to workbook
+                XLSX.utils.book_append_sheet(wb, ws, 'Transaksi Sewa Tenda');
+
+                // Generate filename dengan tanggal
+                const today = new Date().toISOString().split('T')[0];
+                const filename = `Green_Forest_Riverside_${today}.xlsx`;
+
+                // Download file
+                XLSX.writeFile(wb, filename);
+
+                alert(`✅ Data berhasil diexport!\nFile: ${filename}`);
+
+            } catch (error) {
+                console.error('Error export Excel:', error);
+                alert('❌ Gagal export data: ' + error.message);
+            }
+        });
     </script>
 </body>
 </html>
