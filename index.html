@@ -396,6 +396,10 @@
                 <h2>📝 Input Transaksi Baru</h2>
                 <form id="transactionForm">
                     <div class="form-group">
+                        <label for="renterName">Nama Penyewa</label>
+                        <input type="text" id="renterName" placeholder="Masukkan nama penyewa" required>
+                    </div>
+                    <div class="form-group">
                         <label for="rentalDate">Tanggal Sewa</label>
                         <input type="date" id="rentalDate" required>
                     </div>
@@ -532,6 +536,7 @@
             listElement.innerHTML = sortedTransactions.map(transaction => `
                 <div class="transaction-item">
                     <div class="transaction-info">
+                        <div class="transaction-date">👤 ${transaction.renterName || 'Tidak ada nama'}</div>
                         <div class="transaction-date">📅 ${formatDate(transaction.date)}</div>
                         <div class="transaction-price">${formatCurrency(transaction.price)}</div>
                     </div>
@@ -560,7 +565,7 @@
             });
         }
 
-        async function addTransaction(date, price) {
+        async function addTransaction(renterName, date, price) {
             if (!isConfigured) {
                 alert('Silakan setup Firebase terlebih dahulu!');
                 return false;
@@ -569,6 +574,7 @@
             try {
                 const newTransactionRef = transactionsRef.push();
                 await newTransactionRef.set({
+                    renterName: renterName,
                     date: date,
                     price: parseInt(price),
                     timestamp: firebase.database.ServerValue.TIMESTAMP
@@ -604,10 +610,11 @@
                 return;
             }
             
+            const renterName = document.getElementById('renterName').value;
             const date = document.getElementById('rentalDate').value;
             const price = document.getElementById('rentalPrice').value;
 
-            if (!date || !price) {
+            if (!renterName || !date || !price) {
                 alert('Mohon isi semua field!');
                 return;
             }
@@ -616,9 +623,10 @@
             submitBtn.disabled = true;
             submitBtn.textContent = 'Menyimpan...';
 
-            const success = await addTransaction(date, price);
+            const success = await addTransaction(renterName, date, price);
             
             if (success) {
+                document.getElementById('renterName').value = '';
                 document.getElementById('rentalDate').value = '';
                 document.getElementById('rentalPrice').value = '';
                 document.getElementById('rentalDate').valueAsDate = new Date();
@@ -656,11 +664,12 @@
 
                 // Prepare data untuk Excel
                 const excelData = [
-                    ['Tanggal', 'Harga Sewa (Rp)', 'Tanggal Sewa (Format)'] // Header
+                    ['Nama Penyewa', 'Tanggal', 'Harga Sewa (Rp)', 'Tanggal Sewa (Format)'] // Header
                 ];
 
                 transactionsArray.forEach(transaction => {
                     excelData.push([
+                        transaction.renterName || 'Tidak ada nama',
                         transaction.date,
                         transaction.price,
                         formatDate(transaction.date)
@@ -683,6 +692,7 @@
 
                 // Set column widths
                 ws['!cols'] = [
+                    { wch: 25 },  // Nama Penyewa
                     { wch: 15 },  // Tanggal
                     { wch: 18 },  // Harga
                     { wch: 25 }   // Tanggal Format
